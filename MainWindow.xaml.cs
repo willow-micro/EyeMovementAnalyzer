@@ -154,6 +154,30 @@ namespace EyeMovementAnalyzer
                 Interval = new TimeSpan(0, 0, this.constants.timeSecForEachAttempt)
             };
             this.dispatcherTimer.Tick += new EventHandler(this.UpdateTargetPointPosition);
+            // Initialize Eye Tracker
+            try
+            {
+                this.eyeTracker = new EyeTracker(constants.primaryScreenWidth, constants.primaryScreenHeight);
+                Debug.Print($"Model: {this.eyeTracker.GetModel()}");
+                Debug.Print($"SerialNumber: {this.eyeTracker.GetSerialNumber()}");
+                Debug.Print($"Width: {constants.primaryScreenWidth}, Height: {constants.primaryScreenHeight}");
+                Debug.Print($"WidthInMillimeters: {this.eyeTracker.CalcMillimetersFromPixels(constants.primaryScreenWidth)}, HeightInMillimeters: {this.eyeTracker.CalcMillimetersFromPixels(constants.primaryScreenHeight)}");
+                Debug.Print($"PixelPitch: {this.eyeTracker.CalcPixelPitch()}");
+                this.eyeTracker.OnGazeData += this.OnGazeData;
+                this.eyeTracker.StartReceivingGazeData();
+            }
+            catch (ArgumentOutOfRangeException e)
+            {
+                Debug.Print(e.Message);
+                this.Close();
+            }
+            catch (InvalidOperationException e)
+            {
+                if (MessageBox.Show(e.Message, "OK", MessageBoxButton.OK, MessageBoxImage.Error) == MessageBoxResult.OK)
+                {
+                    this.Close();
+                }
+            }
         }
         
         /// <summary>
@@ -206,7 +230,7 @@ namespace EyeMovementAnalyzer
         {
             if (MessageBox.Show("Are you sure to close?", "Close", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                //this.eyeTracker.StopReceivingGazeData();
+                this.eyeTracker.StopReceivingGazeData();
                 this.Close();
             }
         }
@@ -256,6 +280,20 @@ namespace EyeMovementAnalyzer
             {
                 this.mainCanvas.Children.Remove(this.targetPoint);
                 this.dispatcherTimer.Stop();
+            }
+        }
+
+        private void OnGazeData(object sender, SimplifiedGazeDataEventArgs e)
+        {
+            if (e.IsLeftValid &&
+                e.LeftX >= 0.0 && e.LeftX <= this.eyeTracker.GetScreenWidthInPixels() &&
+                e.LeftY >= 0.0 && e.LeftY <= this.eyeTracker.GetScreenHeightInPixels())
+            {
+                Debug.Print($"X: {e.LeftX}, Y: {e.LeftY}");
+                //Debug.Print($"DeviceTimeStamp: {e.DeviceTimeStamp}, SystemTimeStamp: {e.SystemTimeStamp}");
+                //Debug.Print($"Interval: {e.SystemTimeStampInterval / 1000} [ms]");
+                Debug.Print($"AngularVelocity: {e.LeftGazeAngularVelocity} [deg/s]");
+                Debug.Print((e.LeftEyeMovementType == EyeMovementType.Fixation) ? "Fixation" : "Not");                    
             }
         }
     }
