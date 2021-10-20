@@ -16,6 +16,7 @@ using Syncfusion.SfSkinManager;
 // Additional (Microsoft)
 using System.Diagnostics;
 using System.IO;
+using System.Threading;
 using Microsoft.Extensions.Configuration;
 // Additional (Third party)
 using Syncfusion.UI.Xaml.Charts;
@@ -33,6 +34,8 @@ namespace EyeMovementAnalyzer
         public readonly double targetPointRadius;
         public readonly double primaryScreenWidth;
         public readonly double primaryScreenHeight;
+        public readonly int timeSecForEachAttempt;
+        public readonly int numberOfAttempts;
         #endregion
 
         /// <summary>
@@ -47,12 +50,14 @@ namespace EyeMovementAnalyzer
                 .Build();
             IConfigurationSection settings = configuration.GetSection("Settings");
             this.targetPointRadius = settings.GetSection("TargetPointRadius").Get<double>();
+            this.timeSecForEachAttempt = settings.GetSection("TimeSecForEachAttempt").Get<int>();
+            this.numberOfAttempts = settings.GetSection("NumberOfAttempts").Get<int>();
             // Constants declared here
             this.primaryScreenWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
             this.primaryScreenHeight = System.Windows.SystemParameters.PrimaryScreenHeight;
         }
     }
-
+    
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
@@ -100,13 +105,58 @@ namespace EyeMovementAnalyzer
             }
         }
         #endregion
+
+        #region Fields
+        private readonly Constants constants;
+        private readonly Ellipse targetPoint;
+        private readonly Button startButton;
+        private readonly System.Windows.Threading.DispatcherTimer dispatcherTimer;
+        private readonly EyeTracker eyeTracker;
+        #endregion
+
+        #region Properties
+        private int CurrentAttemptNumber { get; set; }
+        #endregion
+
+        /// <summary>
+        /// MainWindow Constructor.
+        /// </summary>
         public MainWindow()
         {
+            // Default
             InitializeComponent();
 			this.Loaded += OnLoaded;
+            // Initialize constants
+            this.constants = new Constants();
+            Debug.Print($"Width: {constants.primaryScreenWidth}");
+            Debug.Print($"Height: {constants.primaryScreenHeight}");
+            // Initialize attempt status
+            this.CurrentAttemptNumber = 0;
+            // Initialize canvas stuffs
+            this.targetPoint = new Ellipse()
+            {
+                Fill = Brushes.Gray,
+                Width = this.constants.targetPointRadius * 2.0,
+                Height = this.constants.targetPointRadius * 2.0
+            };
+            // Initialize Button
+            this.startButton = new Button()
+            {
+                Content = "Start",
+                Name = "StartButton",
+                Width = 50,
+                Height = 20
+            };
+            this.startButton.Click += OnStartButton;
+            // Initialize DispatcherTimer
+            this.dispatcherTimer = new System.Windows.Threading.DispatcherTimer()
+            {
+                Interval = new TimeSpan(0, 0, this.constants.timeSecForEachAttempt)
+            };
+            this.dispatcherTimer.Tick += new EventHandler(this.UpdateTargetPointPosition);
         }
-
-		/// <summary>
+        
+        /// <summary>
         /// [SFDefault] Called when [loaded].
         /// </summary>
         /// <param name="sender">The sender.</param>
@@ -158,6 +208,54 @@ namespace EyeMovementAnalyzer
             {
                 //this.eyeTracker.StopReceivingGazeData();
                 this.Close();
+            }
+        }
+
+        /// <summary>
+        /// Called when [contents were rendered].
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The instance containing the event data.</param>
+        private void OnContentRendered(object sender, EventArgs e)
+        {
+            this.mainGrid.Children.Add(this.startButton);
+            Grid.SetRow(this.startButton, 0);
+            Grid.SetColumn(this.startButton, 0);
+        }
+
+        /// <summary>
+        /// Called when [start button was clicked].
+        /// </summary>
+        /// <param name="sender">The sender.</param>
+        /// <param name="e">The instance containing the event data.</param>
+        private void OnStartButton(object sender, RoutedEventArgs e)
+        {
+            this.dispatcherTimer.Start();
+            this.mainGrid.Children.Remove(this.startButton);
+        }
+
+        private void UpdateTargetPointPosition(object sender, EventArgs e)
+        {
+            // Add the point if not exists
+            if (!this.mainCanvas.Children.Contains(this.targetPoint)) {
+                this.mainCanvas.Children.Add(this.targetPoint);
+            }
+            // Update position
+            if (this.CurrentAttemptNumber < this.constants.numberOfAttempts)
+            {
+                Debug.Print($"Attempt: {this.CurrentAttemptNumber}");
+                double halfWidth = this.constants.primaryScreenWidth / 2.0;
+                double factor = (double)this.CurrentAttemptNumber++ / (double)(this.constants.numberOfAttempts - 1);
+                double offset = (this.constants.primaryScreenWidth / 4.0) - this.constants.targetPointRadius;
+                double xPos = halfWidth * factor + offset;
+                Debug.Print($"X: {xPos}");
+                Canvas.SetLeft(this.targetPoint, xPos);
+                Canvas.SetTop(this.targetPoint, constants.primaryScreenHeight / 2 - constants.targetPointRadius);
+            }
+            else
+            {
+                this.mainCanvas.Children.Remove(this.targetPoint);
+                this.dispatcherTimer.Stop();
             }
         }
     }
