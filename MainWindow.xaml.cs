@@ -256,8 +256,7 @@ namespace EyeMovementAnalyzer
         private void OnStartButton(object sender, RoutedEventArgs e)
         {
             this.dispatcherTimer.Start();
-            this.mainGrid.Children.Remove(this.startButton);
-            this.eyeTracker.StartReceivingGazeData();
+            this.mainGrid.Children.Remove(this.startButton);            
         }
 
         private void UpdateTargetPointPosition(object sender, EventArgs e)
@@ -265,6 +264,7 @@ namespace EyeMovementAnalyzer
             // Add the point if not exists
             if (!this.mainCanvas.Children.Contains(this.targetPoint)) {
                 this.mainCanvas.Children.Add(this.targetPoint);
+                this.eyeTracker.StartReceivingGazeData();
             }
             // Update position
             if (this.CurrentAttemptNumber < this.constants.numberOfAttempts)
