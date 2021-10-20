@@ -112,6 +112,7 @@ namespace EyeMovementAnalyzer
         private readonly Button startButton;
         private readonly System.Windows.Threading.DispatcherTimer dispatcherTimer;
         private readonly EyeTracker eyeTracker;
+        private readonly SFChartViewModel chartVM;
         #endregion
 
         #region Properties
@@ -164,7 +165,6 @@ namespace EyeMovementAnalyzer
                 Debug.Print($"WidthInMillimeters: {this.eyeTracker.CalcMillimetersFromPixels(constants.primaryScreenWidth)}, HeightInMillimeters: {this.eyeTracker.CalcMillimetersFromPixels(constants.primaryScreenHeight)}");
                 Debug.Print($"PixelPitch: {this.eyeTracker.CalcPixelPitch()}");
                 this.eyeTracker.OnGazeData += this.OnGazeData;
-                this.eyeTracker.StartReceivingGazeData();
             }
             catch (ArgumentOutOfRangeException e)
             {
@@ -178,6 +178,8 @@ namespace EyeMovementAnalyzer
                     this.Close();
                 }
             }
+            // Initialize SFCharts dependencies
+            this.chartVM = new SFChartViewModel();
         }
         
         /// <summary>
@@ -230,7 +232,6 @@ namespace EyeMovementAnalyzer
         {
             if (MessageBox.Show("Are you sure to close?", "Close", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
-                this.eyeTracker.StopReceivingGazeData();
                 this.Close();
             }
         }
@@ -242,9 +243,9 @@ namespace EyeMovementAnalyzer
         /// <param name="e">The instance containing the event data.</param>
         private void OnContentRendered(object sender, EventArgs e)
         {
-            this.mainGrid.Children.Add(this.startButton);
             Grid.SetRow(this.startButton, 0);
             Grid.SetColumn(this.startButton, 0);
+            this.mainGrid.Children.Add(this.startButton);
         }
 
         /// <summary>
@@ -256,6 +257,7 @@ namespace EyeMovementAnalyzer
         {
             this.dispatcherTimer.Start();
             this.mainGrid.Children.Remove(this.startButton);
+            this.eyeTracker.StartReceivingGazeData();
         }
 
         private void UpdateTargetPointPosition(object sender, EventArgs e)
@@ -278,8 +280,10 @@ namespace EyeMovementAnalyzer
             }
             else
             {
-                this.mainCanvas.Children.Remove(this.targetPoint);
+                this.eyeTracker.StopReceivingGazeData();
                 this.dispatcherTimer.Stop();
+                this.mainCanvas.Children.Remove(this.targetPoint);
+                this.ShowChart();
             }
         }
 
@@ -293,8 +297,77 @@ namespace EyeMovementAnalyzer
                 //Debug.Print($"DeviceTimeStamp: {e.DeviceTimeStamp}, SystemTimeStamp: {e.SystemTimeStamp}");
                 //Debug.Print($"Interval: {e.SystemTimeStampInterval / 1000} [ms]");
                 Debug.Print($"AngularVelocity: {e.LeftGazeAngularVelocity} [deg/s]");
-                Debug.Print((e.LeftEyeMovementType == EyeMovementType.Fixation) ? "Fixation" : "Not");                    
+                Debug.Print((e.LeftEyeMovementType == EyeMovementType.Fixation) ? "Fixation" : "Not");
+                EyeDataForChart newData = new EyeDataForChart()
+                {
+                    TimestampInMs = e.DeviceTimeStamp,
+                    XCoordinate = e.LeftX,
+                    AngularVelocity = e.LeftGazeAngularVelocity
+                };
+                this.chartVM.Data.Add(newData);
             }
+        }
+
+        private void ShowChart()
+        {
+            // Initialize a chart
+            this.DataContext = this.chartVM;
+            SfChart chart = new SfChart();
+
+            // Initialize axes
+            // Timestamp
+            NumericalAxis timestampAxis = new NumericalAxis()
+            {
+                Header = "Timestamp[ms]"
+            };
+            // X Coordinate
+            NumericalAxis xCoordinateAxis = new NumericalAxis()
+            {
+                Header = "X[px]",
+                Interval = 250
+            };
+            // Angular Velocity
+            NumericalAxis angularVelocityAxis = new NumericalAxis()
+            {
+                Header = "Velocity[rad/s]",
+                OpposedPosition = true,
+                Maximum = 500,
+                Minimum = 0,
+                Interval = 25
+            };
+
+            // Initialize series
+            LineSeries xCoordinateSeries = new LineSeries()
+            {
+                ItemsSource = this.chartVM.Data,
+                XBindingPath = "TimestampInMs",
+                YBindingPath = "XCoordinate",
+                Label = "X Coordinate",
+                XAxis = timestampAxis,
+                YAxis = xCoordinateAxis
+            };
+            LineSeries angularVelocitySeries = new LineSeries()
+            {
+                ItemsSource = this.chartVM.Data,
+                XBindingPath = "TimestampInMs",
+                YBindingPath = "AngularVelocity",
+                Label = "Angular Velocity",
+                XAxis = timestampAxis,
+                YAxis = angularVelocityAxis
+            };
+
+            // Add series to the chart series collection
+            chart.Series.Add(xCoordinateSeries);
+            chart.Series.Add(angularVelocitySeries);
+
+            // Set chart options
+            chart.Header = "Gaze Data";
+            chart.Legend = new ChartLegend();
+
+            // Add chart to the grid for drawing
+            Grid.SetRow(chart, 0);
+            Grid.SetColumn(chart, 0);
+            this.mainGrid.Children.Add(chart);
         }
     }
 }
