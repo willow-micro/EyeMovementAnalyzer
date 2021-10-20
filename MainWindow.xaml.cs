@@ -13,12 +13,46 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Syncfusion.SfSkinManager;
-// Additional
+// Additional (Microsoft)
+using System.Diagnostics;
+using System.IO;
+using Microsoft.Extensions.Configuration;
+// Additional (Third party)
 using Syncfusion.UI.Xaml.Charts;
+using SimplifiedEyeTracker;
 
 
 namespace EyeMovementAnalyzer
 {
+    /// <summary>
+    /// Constants for MainWindow.xaml
+    /// </summary>
+    public class Constants
+    {
+        #region Fields
+        public readonly double targetPointRadius;
+        public readonly double primaryScreenWidth;
+        public readonly double primaryScreenHeight;
+        #endregion
+
+        /// <summary>
+        /// Constructor. Define constants here.
+        /// </summary>
+        public Constants()
+        {
+            // Constants from appsettings.json
+            IConfiguration configuration = new ConfigurationBuilder()
+                .SetBasePath(Directory.GetCurrentDirectory())
+                .AddJsonFile("appsettings.json", false, true)
+                .Build();
+            IConfigurationSection settings = configuration.GetSection("Settings");
+            this.targetPointRadius = settings.GetSection("TargetPointRadius").Get<double>();
+            // Constants declared here
+            this.primaryScreenWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+            this.primaryScreenHeight = System.Windows.SystemParameters.PrimaryScreenHeight;
+        }
+    }
+
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
